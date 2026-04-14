@@ -9,7 +9,7 @@ mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(min_detection_confidence=0.8, min_tracking_confidence=0.5)
 
 st.set_page_config(page_title="AI Air Piano", layout="wide")
-st.title("🎹 Python Air Piano")
+st.title("Python Air Piano")
 st.write("Position your hand so your **Index Finger** hits the boxes!")
 
 class PianoProcessor(VideoProcessorBase):
