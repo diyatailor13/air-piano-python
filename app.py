@@ -5,38 +5,70 @@ import numpy as np
 
 # Initialize Mediapipe
 mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_confidence=0.7)
+hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
 
-def air_piano(image):
-    # image is a numpy array from the webcam
-    h, w, c = image.shape
-    results = hands.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+# Piano Key Configuration
+# Format: [Name, x_start, x_end, Sound_Path]
+PIANO_KEYS = [
+    ["C", 50, 150, "C.wav"],
+    ["D", 160, 260, "D.wav"],
+    ["E", 270, 370, "E.wav"],
+    ["F", 380, 480, "F.wav"],
+    ["G", 490, 590, "G.wav"]
+]
+
+def process_frame(image):
+    if image is None:
+        return None, None
     
-    # Define Piano Keys (Visual only for now)
-    # On a web server, playing sounds instantly is tricky via OpenCV
-    # We draw the keys on the image to show they are being "hit"
-    cv2.rectangle(image, (50, 50), (150, 200), (255, 255, 255), 2) # Key C
-    cv2.putText(image, "C", (90, 180), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+    # Flip the image for mirror effect
+    image = cv2.flip(image, 1)
+    h, w, _ = image.shape
+    rgb_frame = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    results = hands.process(rgb_frame)
+    
+    active_note = None
 
+    # 1. Draw the Piano Interface
+    for key in PIANO_KEYS:
+        name, x1, x2, sound = key
+        # Draw white key rectangles
+        cv2.rectangle(image, (x1, 50), (x2, 250), (255, 255, 255), 2)
+        cv2.putText(image, name, (x1 + 35, 230), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
+    # 2. Hand Tracking Logic
     if results.multi_hand_landmarks:
         for hand_lms in results.multi_hand_landmarks:
+            # Index finger tip is landmark 8
             index_tip = hand_lms.landmark[8]
             ix, iy = int(index_tip.x * w), int(index_tip.y * h)
-            cv2.circle(image, (ix, iy), 10, (0, 255, 0), -1)
             
-            # Simple Collision Logic
-            if 50 < ix < 150 and 50 < iy < 200:
-                cv2.rectangle(image, (50, 50), (150, 200), (0, 255, 0), -1)
-                # Note: In a real web app, you trigger a JS sound here
-                
-    return image
+            # Draw pointer on finger
+            cv2.circle(image, (ix, iy), 15, (0, 255, 0), -1)
 
-# Gradio Interface
+            # Check for collision with keys
+            for key in PIANO_KEYS:
+                name, x1, x2, sound = key
+                if x1 < ix < x2 and 50 < iy < 250:
+                    # Highlight the key in Green
+                    cv2.rectangle(image, (x1, 50), (x2, 250), (0, 255, 0), -1)
+                    cv2.putText(image, name, (x1 + 35, 230), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
+                    active_note = sound # This triggers the audio output
+
+    return image, active_note
+
+# Gradio Interface Setup
 interface = gr.Interface(
-    fn=air_piano, 
-    inputs=gr.Image(sources="webcam", streaming=True), 
-    outputs="image",
-    live=True
+    fn=process_frame,
+    inputs=gr.Image(sources="webcam", streaming=True),
+    outputs=[
+        gr.Image(label="Air Piano Display"),
+        gr.Audio(label="Sound Output", autoplay=True)
+    ],
+    live=True,
+    title="Python Air Hand Piano",
+    description="Hold your index finger up and 'touch' the virtual keys to play!"
 )
 
-interface.launch()
+if __name__ == "__main__":
+    interface.launch()
