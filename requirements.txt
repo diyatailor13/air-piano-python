@@ -1,5 +1,4 @@
-streamlit
-streamlit-webrtc
-opencv-python-headless
+gradio
 mediapipe
-av
+opencv-python-headless
+numpy
