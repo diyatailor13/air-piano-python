@@ -2,13 +2,13 @@ import gradio as gr
 import cv2
 import mediapipe as mp
 import numpy as np
+import os
 
-# Initialize Mediapipe
+# 1. Initialize Mediapipe
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
 
-# Piano Key Configuration
-# Format: [Name, x_start, x_end, Sound_Path]
+# 2. Piano Key Configuration (Name, x_start, x_end, Sound_File)
 PIANO_KEYS = [
     ["C", 50, 150, "C.wav"],
     ["D", 160, 260, "D.wav"],
@@ -21,7 +21,7 @@ def process_frame(image):
     if image is None:
         return None, None
     
-    # Flip the image for mirror effect
+    # Mirror the image for intuitive movement
     image = cv2.flip(image, 1)
     h, w, _ = image.shape
     rgb_frame = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -29,35 +29,37 @@ def process_frame(image):
     
     active_note = None
 
-    # 1. Draw the Piano Interface
+    # Draw the Piano Interface (Static Keys)
     for key in PIANO_KEYS:
         name, x1, x2, sound = key
-        # Draw white key rectangles
         cv2.rectangle(image, (x1, 50), (x2, 250), (255, 255, 255), 2)
         cv2.putText(image, name, (x1 + 35, 230), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
-    # 2. Hand Tracking Logic
+    # Hand Tracking and Collision Logic
     if results.multi_hand_landmarks:
         for hand_lms in results.multi_hand_landmarks:
             # Index finger tip is landmark 8
             index_tip = hand_lms.landmark[8]
             ix, iy = int(index_tip.x * w), int(index_tip.y * h)
             
-            # Draw pointer on finger
+            # Draw green pointer on fingertip
             cv2.circle(image, (ix, iy), 15, (0, 255, 0), -1)
 
-            # Check for collision with keys
+            # Check if fingertip is inside any key rectangle
             for key in PIANO_KEYS:
                 name, x1, x2, sound = key
                 if x1 < ix < x2 and 50 < iy < 250:
-                    # Highlight the key in Green
+                    # Highlight key Green and trigger sound
                     cv2.rectangle(image, (x1, 50), (x2, 250), (0, 255, 0), -1)
                     cv2.putText(image, name, (x1 + 35, 230), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
-                    active_note = sound # This triggers the audio output
+                    
+                    # Verify file exists before trying to play it
+                    if os.path.exists(sound):
+                        active_note = sound 
 
     return image, active_note
 
-# Gradio Interface Setup
+# 3. Gradio Interface Setup (Only ONE interface definition needed)
 interface = gr.Interface(
     fn=process_frame,
     inputs=gr.Image(sources="webcam", streaming=True),
@@ -67,7 +69,7 @@ interface = gr.Interface(
     ],
     live=True,
     title="Python Air Hand Piano",
-    description="Hold your index finger up and 'touch' the virtual keys to play!"
+    description="Use your index finger to play the piano! Ensure C.wav through G.wav are in your folder."
 )
 
 if __name__ == "__main__":
